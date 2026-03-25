@@ -15,7 +15,6 @@ import java.util.logging.Logger;
 import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
@@ -42,58 +41,70 @@ import io.github.bonigarcia.wdm.WebDriverManager;
  */
 public class Assignment {
     private static final Logger LOGGER = Logger.getLogger(Assignment.class.getName());
-    private static final int EXPLICIT_WAIT_TIMEOUT = 15;
-    private static final String BASE_URL = "https://www.globalsqa.com/demo-site/draganddrop/";
-    private static final String SCREENSHOT_DIR = "Screenshots";
+    static final int EXPLICIT_WAIT_TIMEOUT = 15;
+    static final String BASE_URL = "https://www.globalsqa.com/demo-site/draganddrop/";
+    static final String SCREENSHOT_DIR = "Screenshots";
 
-    private static WebDriver driver;
-    private static WebDriverWait wait;
+    final WebDriver driver;
+    final WebDriverWait wait;
+
+    /**
+     * Creates an Assignment instance with the provided WebDriver and WebDriverWait.
+     * This constructor enables dependency injection for testability.
+     *
+     * @param driver the WebDriver instance to use
+     * @param wait   the WebDriverWait instance to use
+     */
+    Assignment(WebDriver driver, WebDriverWait wait) {
+        this.driver = driver;
+        this.wait = wait;
+    }
 
     public static void main(String[] args) {
+        WebDriver driver = null;
         try {
             LOGGER.info("Starting Selenium automation test...");
 
-            // Initialize WebDriver with proper configuration
-            initializeDriver();
+            driver = createDriver();
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(EXPLICIT_WAIT_TIMEOUT));
+            Assignment assignment = new Assignment(driver, wait);
 
-            // Execute test steps
-            performDragAndDropTest();
-            navigateToCheatSheets();
-            performNavigationTest();
-            handleMultipleWindows();
-            captureScreenshot();
+            assignment.performDragAndDropTest();
+            assignment.navigateToCheatSheets();
+            assignment.performNavigationTest();
+            assignment.handleMultipleWindows();
+            assignment.captureScreenshot();
 
             LOGGER.info("Test completed successfully!");
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Test execution failed: " + e.getMessage(), e);
-            captureScreenshotOnFailure();
         } finally {
-            // Ensure browser is closed properly
-            quitDriver();
+            quitDriver(driver);
         }
     }
 
     /**
-     * Initializes the WebDriver with Chrome browser and sets up wait configurations
+     * Creates and configures a Chrome WebDriver instance.
+     *
+     * @return a configured WebDriver instance
      */
-    private static void initializeDriver() {
+    static WebDriver createDriver() {
         try {
             LOGGER.info("Initializing Chrome WebDriver...");
             WebDriverManager.chromedriver().setup();
 
-            // Configure Chrome options for better stability
             ChromeOptions options = new ChromeOptions();
             options.addArguments("--start-maximized");
             options.addArguments("--disable-notifications");
             options.addArguments("--disable-popup-blocking");
 
-            driver = new ChromeDriver(options);
-            wait = new WebDriverWait(driver, Duration.ofSeconds(EXPLICIT_WAIT_TIMEOUT));
+            WebDriver driver = new ChromeDriver(options);
             driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
             driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(30));
 
             LOGGER.info("WebDriver initialized successfully");
+            return driver;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to initialize WebDriver", e);
             throw new RuntimeException("WebDriver initialization failed", e);
@@ -101,20 +112,28 @@ public class Assignment {
     }
 
     /**
-     * Performs drag and drop test on GlobalSQA demo page
+     * Factory method that creates an Actions instance for the current driver.
+     * Extracted to a method to allow overriding in tests.
+     *
+     * @return a new Actions instance bound to this driver
      */
-    private static void performDragAndDropTest() {
+    Actions createActions() {
+        return new Actions(driver);
+    }
+
+    /**
+     * Performs drag and drop test on GlobalSQA demo page.
+     */
+    void performDragAndDropTest() {
         try {
             LOGGER.info("Navigating to drag and drop demo page...");
             driver.get(BASE_URL);
 
-            // Wait for and switch to iframe
             LOGGER.info("Switching to iframe...");
             WebElement iframe = wait.until(ExpectedConditions.presenceOfElementLocated(
                 By.xpath("//iframe[contains(@data-src,'photo-manager')]")));
             driver.switchTo().frame(iframe);
 
-            // Wait for elements to be visible
             WebElement image1 = wait.until(ExpectedConditions.visibilityOfElementLocated(
                 By.xpath("//img[@alt='The peaks of High Tatras']")));
             WebElement image2 = wait.until(ExpectedConditions.visibilityOfElementLocated(
@@ -122,16 +141,14 @@ public class Assignment {
             WebElement trash = wait.until(ExpectedConditions.visibilityOfElementLocated(
                 By.id("trash")));
 
-            // Perform drag and drop operations
             LOGGER.info("Performing drag and drop operations...");
-            Actions actions = new Actions(driver);
+            Actions actions = createActions();
             actions.dragAndDrop(image1, trash).build().perform();
             LOGGER.info("Image 1 dragged to trash");
 
             actions.dragAndDrop(image2, trash).build().perform();
             LOGGER.info("Image 2 dragged to trash");
 
-            // Switch back to main content
             driver.switchTo().defaultContent();
             LOGGER.info("Switched back to main content");
 
@@ -142,9 +159,9 @@ public class Assignment {
     }
 
     /**
-     * Navigates to CheatSheets section
+     * Navigates to CheatSheets section.
      */
-    private static void navigateToCheatSheets() {
+    void navigateToCheatSheets() {
         try {
             LOGGER.info("Clicking on CheatSheets menu...");
             WebElement cheatsheet = wait.until(ExpectedConditions.elementToBeClickable(
@@ -158,21 +175,19 @@ public class Assignment {
     }
 
     /**
-     * Performs browser back and forward navigation
+     * Performs browser back and forward navigation.
      */
-    private static void performNavigationTest() {
+    void performNavigationTest() {
         try {
             LOGGER.info("Testing browser navigation...");
             driver.navigate().back();
             LOGGER.info("Navigated back");
 
-            // Wait for page to load
             wait.until(ExpectedConditions.urlContains("draganddrop"));
 
             driver.navigate().forward();
             LOGGER.info("Navigated forward");
 
-            // Wait for page to load
             wait.until(ExpectedConditions.urlContains("cheatsheets"));
 
         } catch (Exception e) {
@@ -182,9 +197,9 @@ public class Assignment {
     }
 
     /**
-     * Handles multiple browser windows and switches to SQL Cheat Sheet
+     * Handles multiple browser windows and switches to SQL Cheat Sheet.
      */
-    private static void handleMultipleWindows() {
+    void handleMultipleWindows() {
         try {
             LOGGER.info("Opening SQL Cheat Sheet in new window...");
             String parentWindow = driver.getWindowHandle();
@@ -193,13 +208,11 @@ public class Assignment {
                 By.xpath("//a[normalize-space()='SQL Cheat Sheet']")));
             sqlCheatSheet.click();
 
-            // Wait for new window to open
             wait.until(ExpectedConditions.numberOfWindowsToBe(2));
 
             Set<String> allWindows = driver.getWindowHandles();
             LOGGER.info("Total windows open: " + allWindows.size());
 
-            // Switch to new window
             for (String window : allWindows) {
                 if (!window.equals(parentWindow)) {
                     driver.switchTo().window(window);
@@ -208,7 +221,6 @@ public class Assignment {
                 }
             }
 
-            // Wait for page to load completely
             wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
 
         } catch (Exception e) {
@@ -218,19 +230,17 @@ public class Assignment {
     }
 
     /**
-     * Captures screenshot after scrolling to specific image
+     * Captures screenshot after scrolling to specific image.
      */
-    private static void captureScreenshot() {
+    void captureScreenshot() {
         try {
             LOGGER.info("Scrolling to target image...");
             WebElement joinImage = wait.until(ExpectedConditions.presenceOfElementLocated(
                 By.xpath("//img[@data-id='6452']")));
 
-            // Scroll to element using JavaScript
             JavascriptExecutor js = (JavascriptExecutor) driver;
             js.executeScript("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", joinImage);
 
-            // Wait for scroll to complete and element to be visible
             wait.until(ExpectedConditions.visibilityOf(joinImage));
 
             LOGGER.info("Taking screenshot...");
@@ -243,17 +253,25 @@ public class Assignment {
     }
 
     /**
-     * Saves screenshot with dynamic filename and path
+     * Saves screenshot with dynamic filename into the default screenshots directory.
      *
-     * @param filePrefix prefix for screenshot filename
+     * @param filePrefix prefix for the screenshot filename
      */
-    private static void saveScreenshot(String filePrefix) {
+    void saveScreenshot(String filePrefix) {
+        String screenshotPath = System.getProperty("user.dir") + File.separator + SCREENSHOT_DIR;
+        saveScreenshot(filePrefix, screenshotPath);
+    }
+
+    /**
+     * Saves screenshot to the specified directory path.
+     *
+     * @param filePrefix     prefix for the screenshot filename
+     * @param screenshotPath directory path where the screenshot will be saved
+     */
+    void saveScreenshot(String filePrefix, String screenshotPath) {
         try {
-            // Create screenshots directory if it doesn't exist
-            String screenshotPath = System.getProperty("user.dir") + File.separator + SCREENSHOT_DIR;
             Files.createDirectories(Paths.get(screenshotPath));
 
-            // Generate timestamp for unique filename
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
             String fileName = filePrefix + "_" + timestamp + ".png";
 
@@ -264,15 +282,15 @@ public class Assignment {
             FileUtils.copyFile(tempFile, destFile);
             LOGGER.info("Screenshot saved: " + destFile.getAbsolutePath());
 
-        } catch (IOException e) {
+        } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to save screenshot", e);
         }
     }
 
     /**
-     * Captures screenshot on test failure for debugging
+     * Captures a failure screenshot for debugging when the driver is available.
      */
-    private static void captureScreenshotOnFailure() {
+    void captureScreenshotOnFailure() {
         try {
             if (driver != null) {
                 LOGGER.info("Capturing failure screenshot...");
@@ -284,9 +302,11 @@ public class Assignment {
     }
 
     /**
-     * Closes the browser and cleans up resources
+     * Closes the browser and cleans up WebDriver resources.
+     *
+     * @param driver the WebDriver instance to quit; null is safely ignored
      */
-    private static void quitDriver() {
+    static void quitDriver(WebDriver driver) {
         if (driver != null) {
             try {
                 LOGGER.info("Closing browser...");
